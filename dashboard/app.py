@@ -29,7 +29,7 @@ BASE = {
     "host":     "localhost",
     "port":     5432,
     "user":     "postgres",
-    "password": os.getenv("HOSPITAL_DB_PASSWORD", "postgres"),
+    "password": os.getenv("HOSPITAL_DB_PASSWORD", "wafaa"),
 }
 
 DB_SLOW = {**BASE, "dbname": "hospital_slow"}   # no custom indexes
