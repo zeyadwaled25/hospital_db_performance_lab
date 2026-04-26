@@ -23,13 +23,13 @@ import os
 app = Flask(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  DATABASE CONFIG — Change password if needed
+#  DATABASE CONFIG — Keep secrets in environment variables
 # ─────────────────────────────────────────────────────────────────────────────
 BASE = {
     "host":     "localhost",
     "port":     5432,
     "user":     "postgres",
-    "password": "admin",      # ← your postgres password
+    "password": os.getenv("HOSPITAL_DB_PASSWORD", "postgres"),
 }
 
 DB_SLOW = {**BASE, "dbname": "hospital_slow"}   # no custom indexes

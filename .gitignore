@@ -2,6 +2,11 @@
 __pycache__/
 *.py[cod]
 *.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 .venv/
 venv/
 env/
@@ -18,6 +23,11 @@ Thumbs.db
 *.sql.bak
 *_backup.sql
 hospital_*_backup.sql
+*.dump
+
+# Local app runtime
+*.log
+instance/
 
 # Env / secrets
 .env
