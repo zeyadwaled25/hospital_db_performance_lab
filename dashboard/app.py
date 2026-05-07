@@ -1022,11 +1022,11 @@ function renderPerfCard(slot, cardIdx) {
 let perfSlots = [];
 let currentPerfIdx = -1;
 
-function loadPerfQueries() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(LAB_KEY));
-    perfSlots = (saved || []).filter(s => s.testQuery && s.testQuery.trim());
-  } catch(e) { perfSlots = []; }
+async function loadPerfQueries() {
+  // Always prefer server-backed slots so Performance Lab matches Index Lab persistence.
+  if (!labLoaded) await loadLabFromServer();
+  const source = Array.isArray(labSlots) ? labSlots : [];
+  perfSlots = source.filter(s => s && s.testQuery && s.testQuery.trim());
 
   const sel = document.getElementById('perf-selector');
   const box = document.getElementById('perf-desc-box');
@@ -1117,7 +1117,7 @@ async function runSelectedPerf() {
   btn.disabled = false; btn.innerHTML = '▶ Run on Both Databases';
 }
 
-document.querySelector('.tab[data-page="performance"]').addEventListener('click', loadPerfQueries);
+document.querySelector('.tab[data-page="performance"]').addEventListener('click', () => { loadPerfQueries(); });
 
 
 // ── INDEX INSPECTOR ──
