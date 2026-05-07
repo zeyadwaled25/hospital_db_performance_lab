@@ -23,8 +23,8 @@ import json
 
 _LAB_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKUP_LAB_FILE = os.path.join(_LAB_DIR, "backup_lab.txt")
-INDEX_LAB_FILE  = os.path.join(_LAB_DIR, "index_lab.txt")
-TXN_LAB_FILE    = os.path.join(_LAB_DIR, "transaction_lab.txt")
+INDEX_LAB_FILE = os.path.join(_LAB_DIR, "index_lab.txt")
+TXN_LAB_FILE = os.path.join(_LAB_DIR, "transaction_lab.txt")
 
 
 def _lab_load(path):
@@ -46,20 +46,21 @@ def _lab_save(path, data):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+
 app = Flask(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  DATABASE CONFIG — Keep secrets in environment variables
 # ─────────────────────────────────────────────────────────────────────────────
 BASE = {
-    "host":     "localhost",
-    "port":     5432,
-    "user":     "postgres",
+    "host": "localhost",
+    "port": 5432,
+    "user": "postgres",
     "password": os.getenv("HOSPITAL_DB_PASSWORD", "postgres"),
 }
 
-DB_SLOW = {**BASE, "dbname": "hospital_slow"}   # no custom indexes
-DB_FAST = {**BASE, "dbname": "hospital_fast"}   # student's optimized DB
+DB_SLOW = {**BASE, "dbname": "hospital_slow"}  # no custom indexes
+DB_FAST = {**BASE, "dbname": "hospital_fast"}  # student's optimized DB
 
 
 def get_conn(cfg):
@@ -71,19 +72,19 @@ def run_query(cfg, sql, params=None):
     try:
         conn = get_conn(cfg)
         conn.autocommit = True
-        cur  = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        t0   = time.time()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        t0 = time.time()
         if params:
             cur.execute(sql, params)
         else:
             cur.execute(sql)
-        ms   = round((time.time() - t0) * 1000, 1)
+        ms = round((time.time() - t0) * 1000, 1)
         rows = [dict(r) for r in cur.fetchall()]
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
         return rows, ms, None
     except Exception as e:
         return [], 0, str(e)
-
 
 
 def run_explain(cfg, sql, params=None):
@@ -91,19 +92,19 @@ def run_explain(cfg, sql, params=None):
     try:
         conn = get_conn(cfg)
         conn.autocommit = True
-        cur  = conn.cursor()
-        t0   = time.time()
+        cur = conn.cursor()
+        t0 = time.time()
         if params:
             cur.execute("EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) " + sql, params)
         else:
             cur.execute("EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) " + sql)
-        ms   = round((time.time() - t0) * 1000, 1)
+        ms = round((time.time() - t0) * 1000, 1)
         plan = "\n".join(r[0] for r in cur.fetchall())
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
         return plan, ms, None
     except Exception as e:
         return "", 0, str(e)
-
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -117,8 +118,8 @@ PRESET_QUERIES = {}  # Removed — queries now come from student Index Lab
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route("/api/performance/run", methods=["POST"])
 def api_performance_run():
-    data  = request.get_json() or {}
-    sql   = data.get("sql",   "").strip()
+    data = request.get_json() or {}
+    sql = data.get("sql", "").strip()
     if not sql:
         return jsonify({"ok": False, "error": "No SQL provided."})
     # Safety: SELECT only
@@ -126,23 +127,37 @@ def api_performance_run():
         return jsonify({"ok": False, "error": "Only SELECT queries are allowed."})
 
     results = {}
+
     def _run(cfg, key):
         plan, ms, err = run_explain(cfg, sql)
         scan = ""
-        for s in ["Index Only Scan","Bitmap Heap Scan","Index Scan","Seq Scan"]:
+        for s in ["Index Only Scan", "Bitmap Heap Scan", "Index Scan", "Seq Scan"]:
             if s in plan:
-                scan = s; break
+                scan = s
+                break
         results[key] = {"ms": ms, "plan": plan, "err": err, "scan_type": scan}
 
     import threading as _t
+
     ta = _t.Thread(target=_run, args=(DB_SLOW, "slow"))
     tb = _t.Thread(target=_run, args=(DB_FAST, "fast"))
-    ta.start(); tb.start(); ta.join(); tb.join()
+    ta.start()
+    tb.start()
+    ta.join()
+    tb.join()
 
     slow_ms = results["slow"]["ms"]
     fast_ms = results["fast"]["ms"]
     speedup = round(slow_ms / fast_ms, 1) if fast_ms > 0 else None
-    return jsonify({"ok": True, "slow": results["slow"], "fast": results["fast"], "speedup": speedup})
+    return jsonify(
+        {
+            "ok": True,
+            "slow": results["slow"],
+            "fast": results["fast"],
+            "speedup": speedup,
+        }
+    )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  API: STATS
@@ -160,11 +175,14 @@ def api_stats():
     """
     slow_rows, slow_ms, slow_err = run_query(DB_SLOW, sql)
     fast_rows, fast_ms, fast_err = run_query(DB_FAST, sql)
-    return jsonify({
-        "slow": slow_rows[0] if slow_rows else None,
-        "fast": fast_rows[0] if fast_rows else None,
-        "slow_err": slow_err, "fast_err": fast_err
-    })
+    return jsonify(
+        {
+            "slow": slow_rows[0] if slow_rows else None,
+            "fast": fast_rows[0] if fast_rows else None,
+            "slow_err": slow_err,
+            "fast_err": fast_err,
+        }
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -175,8 +193,8 @@ def api_compare(qid):
     if qid not in PRESET_QUERIES:
         return jsonify({"error": "Unknown query id"}), 400
 
-    q    = PRESET_QUERIES[qid]
-    sql  = q["sql"]
+    q = PRESET_QUERIES[qid]
+    sql = q["sql"]
 
     results = {}
 
@@ -195,8 +213,10 @@ def api_compare(qid):
 
         t1 = threading.Thread(target=do_slow)
         t2 = threading.Thread(target=do_fast)
-        t1.start(); t2.start()
-        t1.join();  t2.join()
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
         results["slow"] = slow_result
         results["fast"] = fast_result
 
@@ -209,15 +229,16 @@ def api_compare(qid):
     if fast["ms"] and fast["ms"] > 0 and slow["ms"]:
         speedup = round(slow["ms"] / fast["ms"], 1)
 
-    return jsonify({
-        "label":       q["label"],
-        "description": q["description"],
-        "index_hint":  q["index_hint"],
-        "slow": {"ms": slow["ms"], "plan": slow["plan"], "err": slow["err"]},
-        "fast": {"ms": fast["ms"], "plan": fast["plan"], "err": fast["err"]},
-        "speedup": speedup
-    })
-
+    return jsonify(
+        {
+            "label": q["label"],
+            "description": q["description"],
+            "index_hint": q["index_hint"],
+            "slow": {"ms": slow["ms"], "plan": slow["plan"], "err": slow["err"]},
+            "fast": {"ms": fast["ms"], "plan": fast["plan"], "err": fast["err"]},
+            "speedup": speedup,
+        }
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -258,7 +279,7 @@ def txn_lab_save():
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route("/api/backup", methods=["POST"])
 def api_backup():
-    data   = request.get_json() or {}
+    data = request.get_json() or {}
     db_key = data.get("db", "slow")
     dbname = "hospital_slow" if db_key == "slow" else "hospital_fast"
     outfile = f"C:\\{dbname}_backup.sql"
@@ -273,17 +294,21 @@ def api_backup():
 
     try:
         t0 = time.time()
-        result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(
+            cmd, env=env, capture_output=True, text=True, timeout=120
+        )
         ms = round((time.time() - t0) * 1000)
         if result.returncode == 0:
             size = os.path.getsize(outfile) if os.path.exists(outfile) else 0
-            return jsonify({
-                "success": True,
-                "file":    outfile,
-                "size_mb": round(size / 1024 / 1024, 2),
-                "time_ms": ms,
-                "message": f"Backup of '{dbname}' completed in {ms}ms → {outfile} ({round(size/1024/1024,2)} MB)"
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "file": outfile,
+                    "size_mb": round(size / 1024 / 1024, 2),
+                    "time_ms": ms,
+                    "message": f"Backup of '{dbname}' completed in {ms}ms → {outfile} ({round(size/1024/1024,2)} MB)",
+                }
+            )
         else:
             return jsonify({"success": False, "error": result.stderr})
     except Exception as e:
@@ -293,6 +318,7 @@ def api_backup():
 # ─────────────────────────────────────────────────────────────────────────────
 #  API: INDEXES — list current indexes on a DB
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @app.route("/api/indexes/<db_key>")
 def api_indexes(db_key):
@@ -313,29 +339,40 @@ def api_indexes(db_key):
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route("/api/create-index", methods=["POST"])
 def api_create_index():
-    data   = request.get_json() or {}
-    sql    = data.get("sql", "").strip()
+    data = request.get_json() or {}
+    sql = data.get("sql", "").strip()
     db_key = data.get("db", "fast")
-    cfg    = DB_SLOW if db_key == "slow" else DB_FAST
+    cfg = DB_SLOW if db_key == "slow" else DB_FAST
 
     if not sql:
         return jsonify({"ok": False, "error": "No SQL provided."})
 
     lowered = sql.lower().lstrip()
-    if not (lowered.startswith("create index") or
-            lowered.startswith("create unique index") or
-            lowered.startswith("drop index")):
-        return jsonify({"ok": False,
-                        "error": "Only CREATE INDEX or DROP INDEX statements are allowed here."})
+    if not (
+        lowered.startswith("create index")
+        or lowered.startswith("create unique index")
+        or lowered.startswith("drop index")
+    ):
+        return jsonify(
+            {
+                "ok": False,
+                "error": "Only CREATE INDEX or DROP INDEX statements are allowed here.",
+            }
+        )
     try:
         conn = get_conn(cfg)
         conn.autocommit = True
-        cur  = conn.cursor()
+        cur = conn.cursor()
         cur.execute(sql)
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
         action = "created" if "create" in lowered else "dropped"
-        return jsonify({"ok": True,
-                        "message": f"Index {action} successfully on hospital_{db_key}."})
+        return jsonify(
+            {
+                "ok": True,
+                "message": f"Index {action} successfully on hospital_{db_key}.",
+            }
+        )
     except Exception as e:
         return jsonify({"ok": False, "error": str(e).strip()})
 
@@ -346,18 +383,32 @@ def api_create_index():
 @app.route("/api/sandbox", methods=["POST"])
 def api_sandbox():
     data = request.get_json() or {}
-    sql  = data.get("sql", "").strip()
-    dbs  = data.get("dbs", ["slow", "fast"])  # which DBs to run on
+    sql = data.get("sql", "").strip()
+    dbs = data.get("dbs", ["slow", "fast"])  # which DBs to run on
 
     if not sql:
         return jsonify({"error": "No SQL provided"}), 400
 
     # Safety: block destructive statements
     lowered = sql.lower()
-    forbidden = ["drop ", "truncate ", "delete ", "alter ", "create index", "drop index"]
+    forbidden = [
+        "drop ",
+        "truncate ",
+        "delete ",
+        "alter ",
+        "create index",
+        "drop index",
+    ]
     for f in forbidden:
         if f in lowered:
-            return jsonify({"error": f"Blocked: '{f.strip()}' statements are not allowed in the sandbox."}), 400
+            return (
+                jsonify(
+                    {
+                        "error": f"Blocked: '{f.strip()}' statements are not allowed in the sandbox."
+                    }
+                ),
+                400,
+            )
 
     results = {}
 
@@ -368,12 +419,12 @@ def api_sandbox():
         # Then run the actual query for results
         rows, query_ms, query_err = run_query(cfg, sql)
         results[db_key] = {
-            "ms":        query_ms,
-            "plan":      plan if not plan_err else "",
-            "plan_ms":   plan_ms,
-            "rows":      rows[:20],   # cap at 20 for display
+            "ms": query_ms,
+            "plan": plan if not plan_err else "",
+            "plan_ms": plan_ms,
+            "rows": rows[:20],  # cap at 20 for display
             "row_count": len(rows),
-            "err":       query_err or plan_err
+            "err": query_err or plan_err,
         }
 
     threads = []
@@ -394,13 +445,12 @@ def api_sandbox():
     return jsonify({"results": results, "speedup": speedup})
 
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  API: INDEX LAB — create index + validate via EXPLAIN on hospital_fast
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route("/api/index-lab/run", methods=["POST"])
 def api_index_lab_run():
-    data       = request.get_json() or {}
+    data = request.get_json() or {}
     create_sql = data.get("create_sql", "").strip()
     test_query = data.get("test_query", "").strip()
     index_name = data.get("index_name", "").strip()
@@ -412,44 +462,64 @@ def api_index_lab_run():
 
     # Only allow CREATE INDEX / DROP INDEX
     lowered = create_sql.lower().lstrip()
-    if not (lowered.startswith("create index") or lowered.startswith("create unique index")):
-        return jsonify({"ok": False, "error": "Only CREATE INDEX statements are allowed here."})
+    if not (
+        lowered.startswith("create index") or lowered.startswith("create unique index")
+    ):
+        return jsonify(
+            {"ok": False, "error": "Only CREATE INDEX statements are allowed here."}
+        )
 
-    result = {"ok": True, "index_created": False, "create_error": None,
-              "plan": "", "ms": 0, "scan_type": "", "index_used": False,
-              "rows_returned": 0, "query_error": None}
+    result = {
+        "ok": True,
+        "index_created": False,
+        "create_error": None,
+        "plan": "",
+        "ms": 0,
+        "scan_type": "",
+        "index_used": False,
+        "rows_returned": 0,
+        "query_error": None,
+    }
 
     # Step 1: Create the index on hospital_fast
     try:
         conn = get_conn(DB_FAST)
         conn.autocommit = True
-        cur  = conn.cursor()
+        cur = conn.cursor()
         # Inject IF NOT EXISTS so re-runs don’t fail
         safe_sql = create_sql
         if "if not exists" not in lowered:
             safe_sql = safe_sql.replace(
-                next(k for k in ["CREATE UNIQUE INDEX", "CREATE INDEX"]
-                     if k.lower() in lowered),
-                ("CREATE UNIQUE INDEX IF NOT EXISTS" if "unique" in lowered
-                 else "CREATE INDEX IF NOT EXISTS"),
-                1
+                next(
+                    k
+                    for k in ["CREATE UNIQUE INDEX", "CREATE INDEX"]
+                    if k.lower() in lowered
+                ),
+                (
+                    "CREATE UNIQUE INDEX IF NOT EXISTS"
+                    if "unique" in lowered
+                    else "CREATE INDEX IF NOT EXISTS"
+                ),
+                1,
             )
         cur.execute(safe_sql)
         # Auto-run ANALYZE on the indexed table so planner stats are fresh
         import re as _re
-        _m = _re.search(r'\bON\s+(\w+)\s*\(', safe_sql, _re.IGNORECASE)
+
+        _m = _re.search(r"\bON\s+(\w+)\s*\(", safe_sql, _re.IGNORECASE)
         if _m:
-            cur.execute(f'ANALYZE {_m.group(1)}')
-        cur.close(); conn.close()
+            cur.execute(f"ANALYZE {_m.group(1)}")
+        cur.close()
+        conn.close()
         result["index_created"] = True
     except Exception as e:
-        result["ok"]            = False
-        result["create_error"]  = str(e).strip()
+        result["ok"] = False
+        result["create_error"] = str(e).strip()
         return jsonify(result)
 
     # Step 2: EXPLAIN ANALYZE the test query on hospital_fast
     plan, ms, err = run_explain(DB_FAST, test_query)
-    result["ms"]  = ms
+    result["ms"] = ms
 
     if err:
         result["query_error"] = err
@@ -2122,9 +2192,9 @@ def index():
 
 
 if __name__ == "__main__":
-    print("\n" + "="*58)
+    print("\n" + "=" * 58)
     print("  🏥 Hospital DB — Advanced Database Final Project")
     print("  Open: http://localhost:5000")
     print("  Databases: hospital_slow  |  hospital_fast")
-    print("="*58 + "\n")
+    print("=" * 58 + "\n")
     app.run(debug=True, port=5000)
