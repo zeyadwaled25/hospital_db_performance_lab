@@ -53,9 +53,9 @@ app = Flask(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 BASE = {
     "host":     "localhost",
-    "port":     5433,
+    "port":     5432,
     "user":     "postgres",
-    "password": os.getenv("HOSPITAL_DB_PASSWORD", "1234"),
+    "password": os.getenv("HOSPITAL_DB_PASSWORD", "postgres"),
 }
 
 DB_SLOW = {**BASE, "dbname": "hospital_slow"}   # no custom indexes
