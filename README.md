@@ -5,21 +5,24 @@ Two PostgreSQL databases with the same 6 million rows. One has no custom indexes
 The project is delivered in parts:
 
 - **Part 1 - Indexes.** Build 10+ indexes from the audit report, prove each one in the Performance Lab.
+
+<!-- Docker automation removed. Use manual setup steps below to create and populate databases. -->
+
 - **Part 2 - Concurrency.** Reproduce the 5 classic concurrency bugs (Lost Update, Non-Repeatable Read, Phantom Read, Dirty Read attempt, Deadlock) by inventing your own hospital scenarios in the Transaction Lab, then fix each one.
 - **Part 3 - Backup & Recovery.** Pick the right recovery tool (`pg_dump` restore, `pg_basebackup` + WAL replay, or PITR) for 4 disaster scenarios (3 given + 1 you invent), and write the recovery plan in the Backup Lab.
 
 ## Files
 
-| File | What it is |
-|---|---|
-| `00-student-guide.md` | Walkthrough of every tab in the dashboard. Read after setup. |
-| `01a-schema-hospital-slow.sql` | Creates `hospital_slow` and its 9 tables. |
-| `02-data-generation.sql` | Inserts ~6M rows. |
-| `03-student-tasks.md` | Part 1 task sheet (Indexes). |
-| `05-business-case.md` | The IT audit report for Part 1. 15 performance problems are hidden in it. |
-| `06-concurrency-tasks.md` | Part 2 task sheet (Concurrency). |
-| `07-backup-tasks.md` | Part 3 task sheet (Backup & Recovery). |
-| `dashboard/app.py` | The Flask app. |
+| File                          | What it is                                                                |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `00-student-guide.md`         | Walkthrough of every tab in the dashboard. Read after setup.              |
+| `01-schema-hospital-slow.sql` | Creates `hospital_slow` and its 9 tables.                                 |
+| `02-data-generation.sql`      | Inserts ~6M rows.                                                         |
+| `03-student-tasks.md`         | Part 1 task sheet (Indexes).                                              |
+| `05-business-case.md`         | The IT audit report for Part 1. 15 performance problems are hidden in it. |
+| `06-concurrency-tasks.md`     | Part 2 task sheet (Concurrency).                                          |
+| `07-backup-tasks.md`          | Part 3 task sheet (Backup & Recovery).                                    |
+| `dashboard/app.py`            | The Flask app.                                                            |
 
 ## What you need before you start
 
@@ -53,6 +56,13 @@ SELECT
 ```
 
 You should see around 500K patients, 2M appointments, 1M lab results, 1.2M billing rows.
+
+-- Developer quick setup (small sample)
+If you are developing locally and don't want to generate millions of rows, run the small sample generator:
+
+1. Create and connect to `hospital_slow` as above.
+2. In pgAdmin, run `scripts/gen_sample.sql` while connected to `hospital_slow`.
+3. Confirm counts and run the app (`cd dashboard && python app.py`).
 
 ### 3. Clone it into `hospital_fast`
 

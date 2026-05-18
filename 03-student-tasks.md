@@ -12,7 +12,7 @@ No Word documents, no screenshots, no written reports. You open the app in front
 Full steps are in `README.md`. The short version:
 
 1. Clone the repo, then `pip install flask psycopg2-binary`.
-2. Run `01a-schema-hospital-slow.sql` in pgAdmin.
+2. Run `01-schema-hospital-slow.sql` in pgAdmin.
 3. Run `02-data-generation.sql` inside `hospital_slow` (about 6M rows).
 4. Disconnect from `hospital_slow`, connect to `postgres`, then run:
    `CREATE DATABASE hospital_fast TEMPLATE hospital_slow;`

@@ -1,14 +1,5 @@
--- ============================================================
--- HOSPITAL MANAGEMENT SYSTEM — DATA GENERATION SCRIPT
--- Advanced Database Course — Final Project
--- Step 2: Run this AFTER 01-schema-setup.sql
--- Connect to hospital_db before running!
--- Expected runtime: 5–10 minutes — generates ~4 million rows
--- ============================================================
-
--- ============================================================
--- 1. ROOMS — 100 rows
--- ============================================================
+-- Step 2: Run this AFTER 01-schema-hospital-slow.sql
+-- Connect to hospital_slow before running!
 INSERT INTO rooms (room_number, type, floor, capacity)
 SELECT
     'R-' || LPAD(g::TEXT, 3, '0') AS room_number,
@@ -46,8 +37,9 @@ SELECT
            'Saleh','Aziz','Taha','Zaki','Badr','Saad','Fawzy'])[CEIL(RANDOM()*15)::INT]
     || '_' || g AS name,
 
-    -- DOB: age between 1 and 90 years
-    CURRENT_DATE - (FLOOR(RANDOM() * 32850 + 365) || ' days')::INTERVAL AS dob,
+-- DOB: age between 1 and 90 years
+
+CURRENT_DATE - (FLOOR(RANDOM() * 32850 + 365) || ' days')::INTERVAL AS dob,
 
     CASE WHEN RANDOM() > 0.5 THEN 'M' ELSE 'F' END AS gender,
 
@@ -71,8 +63,9 @@ SELECT
     CEIL(RANDOM() * 500000)::INT AS patient_id,
     CEIL(RANDOM() * 500)::INT AS doctor_id,
 
-    -- Scheduled over the past 5 years
-    NOW() - (FLOOR(RANDOM() * 1825 * 24 * 60) || ' minutes')::INTERVAL AS scheduled_at,
+-- Scheduled over the past 5 years
+
+NOW() - (FLOOR(RANDOM() * 1825 * 24 * 60) || ' minutes')::INTERVAL AS scheduled_at,
 
     (ARRAY['completed','completed','completed','cancelled','no-show','scheduled'])[CEIL(RANDOM()*6)::INT] AS status,
 
@@ -87,6 +80,8 @@ FROM generate_series(1, 2000000) g;
 -- ============================================================
 -- 5. DIAGNOSES — 800,000 rows (for completed appointments subset)
 -- ============================================================
+
+
 INSERT INTO diagnoses (appointment_id, icd_code, description, severity)
 SELECT
     CEIL(RANDOM() * 2000000)::INT AS appointment_id,
@@ -114,6 +109,8 @@ FROM generate_series(1, 800000) g;
 -- ============================================================
 -- 6. PRESCRIPTIONS — 600,000 rows
 -- ============================================================
+
+
 INSERT INTO prescriptions (appointment_id, drug_name, dosage, duration_days)
 SELECT
     CEIL(RANDOM() * 2000000)::INT AS appointment_id,
@@ -134,6 +131,8 @@ FROM generate_series(1, 600000) g;
 -- ============================================================
 -- 7. LAB RESULTS — 1,000,000 rows
 -- ============================================================
+
+
 INSERT INTO lab_results (patient_id, test_name, value, unit, taken_at, result_at)
 SELECT
     CEIL(RANDOM() * 500000)::INT AS patient_id,
@@ -148,11 +147,12 @@ SELECT
 
     (ARRAY['mg/dL','mmol/L','g/dL','µIU/mL','mg/L','mEq/L','%','U/L'])[CEIL(RANDOM()*8)::INT] AS unit,
 
-    -- Taken in the past 5 years
-    NOW() - (FLOOR(RANDOM() * 1825) || ' days')::INTERVAL AS taken_at,
+-- Taken in the past 5 years
+NOW() - (FLOOR(RANDOM() * 1825) || ' days')::INTERVAL AS taken_at,
 
-    -- Result available 1–3 days after taken
-    NOW() - (FLOOR(RANDOM() * 1822) || ' days')::INTERVAL AS result_at
+-- Result available 1–3 days after taken
+
+NOW() - (FLOOR(RANDOM() * 1822) || ' days')::INTERVAL AS result_at
 
 FROM generate_series(1, 1000000) g;
 
@@ -182,6 +182,8 @@ FROM (
 -- ============================================================
 -- 9. BILLING — 1,200,000 rows
 -- ============================================================
+
+
 INSERT INTO billing (appointment_id, amount, discount, paid_at, payment_method)
 SELECT
     CEIL(RANDOM() * 2000000)::INT AS appointment_id,
@@ -190,8 +192,9 @@ SELECT
 
     ROUND((RANDOM() * 25)::NUMERIC, 2) AS discount,
 
-    -- 80% paid, 20% unpaid (NULL = unpaid — great for partial index demo)
-    CASE
+-- 80% paid, 20% unpaid (NULL = unpaid — great for partial index demo)
+
+CASE
         WHEN RANDOM() > 0.20
         THEN NOW() - (FLOOR(RANDOM() * 365) || ' days')::INTERVAL
         ELSE NULL
@@ -208,23 +211,32 @@ FROM generate_series(1, 1200000) g;
 -- ============================================================
 -- VERIFY: Check row counts after generation
 -- ============================================================
-SELECT 'patients'      AS table_name, COUNT(*) AS row_count FROM patients
+SELECT 'patients' AS table_name, COUNT(*) AS row_count
+FROM patients
 UNION ALL
-SELECT 'doctors',       COUNT(*) FROM doctors
+SELECT 'doctors', COUNT(*)
+FROM doctors
 UNION ALL
-SELECT 'rooms',         COUNT(*) FROM rooms
+SELECT 'rooms', COUNT(*)
+FROM rooms
 UNION ALL
-SELECT 'appointments',  COUNT(*) FROM appointments
+SELECT 'appointments', COUNT(*)
+FROM appointments
 UNION ALL
-SELECT 'diagnoses',     COUNT(*) FROM diagnoses
+SELECT 'diagnoses', COUNT(*)
+FROM diagnoses
 UNION ALL
-SELECT 'prescriptions', COUNT(*) FROM prescriptions
+SELECT 'prescriptions', COUNT(*)
+FROM prescriptions
 UNION ALL
-SELECT 'lab_results',   COUNT(*) FROM lab_results
+SELECT 'lab_results', COUNT(*)
+FROM lab_results
 UNION ALL
-SELECT 'admissions',    COUNT(*) FROM admissions
+SELECT 'admissions', COUNT(*)
+FROM admissions
 UNION ALL
-SELECT 'billing',       COUNT(*) FROM billing
+SELECT 'billing', COUNT(*)
+FROM billing
 ORDER BY table_name;
 
 -- Expected totals:

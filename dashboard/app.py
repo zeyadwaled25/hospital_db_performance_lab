@@ -11,15 +11,21 @@ Run:
     Open: http://localhost:5000
 """
 
-from flask import Flask, jsonify, request, render_template_string
+from flask import Flask, jsonify, request, render_template_string, send_file
 import psycopg2
 import psycopg2.extras
 import psycopg2.errorcodes
+from psycopg2.pool import SimpleConnectionPool
 import threading
 import subprocess
+import shutil
 import time
 import os
 import json
+import logging
+
+# Basic logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 _LAB_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKUP_LAB_FILE = os.path.join(_LAB_DIR, "backup_lab.txt")
@@ -62,9 +68,51 @@ BASE = {
 DB_SLOW = {**BASE, "dbname": "hospital_slow"}  # no custom indexes
 DB_FAST = {**BASE, "dbname": "hospital_fast"}  # student's optimized DB
 
+# Connection pools (lazy init)
+POOLS = {}
+
+
+def _init_pools():
+    global POOLS
+    if POOLS:
+        return
+    try:
+        logging.info("Initializing DB connection pools")
+        POOLS = {
+            "hospital_slow": SimpleConnectionPool(1, 10, **DB_SLOW),
+            "hospital_fast": SimpleConnectionPool(1, 10, **DB_FAST),
+        }
+    except Exception as e:
+        logging.warning(f"Connection pool init failed: {e}")
+        POOLS = {}
+
+
+# Try to initialize at import time (will not fail hard if DB is down)
+_init_pools()
+
 
 def get_conn(cfg):
+    """Get a connection from the pool if available, else fallback to direct connect."""
+    dbname = cfg.get("dbname")
+    pool = POOLS.get(dbname)
+    if pool:
+        return pool.getconn()
     return psycopg2.connect(**cfg)
+
+
+def put_conn(cfg, conn):
+    dbname = cfg.get("dbname")
+    pool = POOLS.get(dbname)
+    if pool:
+        try:
+            pool.putconn(conn)
+            return
+        except Exception:
+            pass
+    try:
+        conn.close()
+    except Exception:
+        pass
 
 
 def run_query(cfg, sql, params=None):
@@ -81,9 +129,10 @@ def run_query(cfg, sql, params=None):
         ms = round((time.time() - t0) * 1000, 1)
         rows = [dict(r) for r in cur.fetchall()]
         cur.close()
-        conn.close()
+        put_conn(cfg, conn)
         return rows, ms, None
     except Exception as e:
+        logging.exception("run_query error")
         return [], 0, str(e)
 
 
@@ -101,9 +150,10 @@ def run_explain(cfg, sql, params=None):
         ms = round((time.time() - t0) * 1000, 1)
         plan = "\n".join(r[0] for r in cur.fetchall())
         cur.close()
-        conn.close()
+        put_conn(cfg, conn)
         return plan, ms, None
     except Exception as e:
+        logging.exception("run_explain error")
         return "", 0, str(e)
 
 
@@ -282,20 +332,40 @@ def api_backup():
     data = request.get_json() or {}
     db_key = data.get("db", "slow")
     dbname = "hospital_slow" if db_key == "slow" else "hospital_fast"
-    outfile = f"C:\\{dbname}_backup.sql"
+    # Place backup inside the dashboard folder so it's reachable from the project
+    outfile = os.path.join(_LAB_DIR, f"{dbname}_backup.sql")
 
-    pg_bin = r"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe"
-    if not os.path.exists(pg_bin):
-        # Try to find pg_dump in PATH
-        pg_bin = "pg_dump"
+    # Locate pg_dump
+    pg_bin = shutil.which("pg_dump") or shutil.which("pg_dump.exe")
+    if not pg_bin:
+        return jsonify(
+            {
+                "success": False,
+                "error": "pg_dump not found on PATH in this environment.",
+            }
+        )
 
+    # Build command (include host if provided)
     cmd = [pg_bin, "-U", BASE["user"], "-f", outfile, dbname]
+    if BASE.get("host"):
+        cmd[1:1] = ["-h", str(BASE.get("host"))]
+    if BASE.get("port"):
+        # insert after -h host if present, else near front
+        if "-h" in cmd:
+            try:
+                idx = cmd.index(str(BASE.get("host"))) + 1
+            except ValueError:
+                idx = 1
+            cmd[idx:idx] = ["-p", str(BASE.get("port"))]
+        else:
+            cmd[1:1] = ["-p", str(BASE.get("port"))]
+
     env = {**os.environ, "PGPASSWORD": BASE["password"]}
 
     try:
         t0 = time.time()
         result = subprocess.run(
-            cmd, env=env, capture_output=True, text=True, timeout=120
+            cmd, env=env, capture_output=True, text=True, timeout=300
         )
         ms = round((time.time() - t0) * 1000)
         if result.returncode == 0:
@@ -328,6 +398,7 @@ def api_indexes(db_key):
         FROM pg_indexes
         WHERE schemaname = 'public'
           AND indexname NOT LIKE '%_pkey'
+          AND indexname NOT LIKE '%_key'
         ORDER BY tablename, indexname
     """
     rows, ms, err = run_query(cfg, sql)
@@ -872,10 +943,10 @@ pre,code{font-family:var(--mono)}
   </div>
   <div class="result-info" style="font-size:.78rem;line-height:1.7">
     <b>How to set up both databases:</b><br>
-    1. Run <code>01-schema-setup.sql</code> twice — once creating <code>hospital_slow</code>, once creating <code>hospital_fast</code><br>
-    2. Run <code>02-data-generation.sql</code> on both databases (same data, same volume)<br>
-    3. Add your optimized indexes <b>only</b> on <code>hospital_fast</code><br>
-    4. Check <b>Index Inspector</b> tab to verify: <code>hospital_slow</code> should show 0 custom indexes, <code>hospital_fast</code> should show 3+
+    1. Run <code>01-schema-hospital-slow.sql</code> in the `postgres` database to create <code>hospital_slow</code> and its tables.<br>
+    2. Connect to <code>hospital_slow</code> and run <code>02-data-generation.sql</code> to populate the data.<br>
+    3. Clone it into <code>hospital_fast</code> using: <code>CREATE DATABASE hospital_fast TEMPLATE hospital_slow;</code><br>
+    4. Add your optimized indexes <b>only</b> on <code>hospital_fast</code> and verify in Index Inspector.
   </div>
 </div>
 
